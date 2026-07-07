@@ -286,7 +286,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let accent_names: Vec<SharedString> = ACCENTS.iter().map(|a| a.name.into()).collect();
     app.set_accent_names(ModelRc::new(VecModel::from(accent_names)));
 
-    let ui_dark = Rc::new(Cell::new(true));
+    // debug/screenshot helper: STUBBY_DARK=0 starts in light mode
+    let start_dark = std::env::var("STUBBY_DARK").map(|v| v != "0").unwrap_or(true);
+    let ui_dark = Rc::new(Cell::new(start_dark));
     let ui_accent = Rc::new(Cell::new(0usize));
     apply_palette(&app, ui_dark.get(), ACCENTS[ui_accent.get()].rgb);
     {
