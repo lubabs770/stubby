@@ -1,0 +1,54 @@
+name: release
+
+# Build stubby on GitHub's runners — NOT on the dev machine. Triggered by a
+# version tag (vX.Y.Z), or manually via the Actions tab / `gh workflow run`.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: stubby
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+        working-directory: .
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            stubby/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('stubby/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release --locked --bins
+
+      - name: Stage artifact
+        working-directory: .
+        run: cp stubby/target/release/stubby stubby-linux-x86_64
+
+      - name: Attach to release (tag builds)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: stubby-linux-x86_64
+
+      - name: Upload artifact (manual runs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: stubby-linux-x86_64
+          path: stubby-linux-x86_64
