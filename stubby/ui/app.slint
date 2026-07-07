@@ -1,4 +1,4 @@
-import { Button, ComboBox, Palette } from "std-widgets.slint";
+import { Button, ComboBox, Palette, Slider } from "std-widgets.slint";
 
 export struct KeyData {
     kx: length,
@@ -163,6 +163,22 @@ export component AppWindow inherits Window {
     in property <bool> dark: true;
     in property <[string]> accent-names;
     in property <int> current-accent: 0;
+
+    // lighting page
+    in-out property <int> current-page: 0;
+    in property <[string]> effect-names;
+    in-out property <int> light-effect: 0;
+    in property <float> light-brightness: 255;
+    in property <float> light-speed: 128;
+    in property <float> light-hue: 0;
+    in property <float> light-sat: 255;
+    in property <color> light-color: #ff0000;
+    callback light-effect-selected(int);
+    callback light-brightness-changed(float);
+    callback light-speed-changed(float);
+    callback light-color-changed(float, float); // hue, sat
+    callback light-save();
+
     callback key-clicked(int);
     callback layer-clicked(int);
     callback tab-clicked(int);
@@ -203,6 +219,29 @@ export component AppWindow inherits Window {
                 Rectangle { horizontal-stretch: 1; }
                 VerticalLayout {
                     alignment: center;
+                    HorizontalLayout {
+                        spacing: 4px;
+                        TabButton {
+                            text: "Keymap";
+                            selected: root.current-page == 0;
+                            cap: root.t-cap;
+                            text-col: root.t-text;
+                            dim: root.t-dim;
+                            clicked => { root.current-page = 0; }
+                        }
+                        TabButton {
+                            text: "Lighting";
+                            selected: root.current-page == 1;
+                            cap: root.t-cap;
+                            text-col: root.t-text;
+                            dim: root.t-dim;
+                            clicked => { root.current-page = 1; }
+                        }
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                VerticalLayout {
+                    alignment: center;
                     ComboBox {
                         width: 128px;
                         model: root.accent-names;
@@ -228,6 +267,9 @@ export component AppWindow inherits Window {
                 }
             }
         }
+
+        // ── Keymap page ──
+        if root.current-page == 0 : VerticalLayout {
 
         // body (keyboard)
         HorizontalLayout {
@@ -313,6 +355,146 @@ export component AppWindow inherits Window {
                                 cap-hover: root.t-cap-hover;
                                 cap-text: root.t-cap-text;
                                 clicked => { root.pick-clicked(cell.kc); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        } // end keymap page
+
+        // ── Lighting page ──
+        if root.current-page == 1 : Rectangle {
+            vertical-stretch: 1;
+            HorizontalLayout {
+                alignment: center;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 520px;
+                        border-radius: 16px;
+                        background: root.t-panel;
+                        drop-shadow-blur: 12px;
+                        drop-shadow-color: #00000040;
+                        drop-shadow-offset-y: 4px;
+
+                        VerticalLayout {
+                            padding: 28px;
+                            spacing: 18px;
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Lighting";
+                                    color: root.t-text;
+                                    font-size: 20px;
+                                    font-weight: 700;
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                if !root.connected : Text {
+                                    text: "offline — controls disabled";
+                                    color: root.t-dim;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 6px;
+                                Text { text: "EFFECT"; color: root.t-dim; font-size: 11px; }
+                                ComboBox {
+                                    model: root.effect-names;
+                                    current-index: root.light-effect;
+                                    enabled: root.connected;
+                                    selected => {
+                                        root.light-effect = self.current-index;
+                                        root.light-effect-selected(self.current-index);
+                                    }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 2px;
+                                HorizontalLayout {
+                                    Text { text: "BRIGHTNESS"; color: root.t-dim; font-size: 11px; }
+                                    Rectangle { horizontal-stretch: 1; }
+                                    Text { text: "\{Math.round(bri.value)}"; color: root.t-dim; font-size: 11px; }
+                                }
+                                bri := Slider {
+                                    minimum: 0;
+                                    maximum: 255;
+                                    value: root.light-brightness;
+                                    enabled: root.connected;
+                                    changed(v) => { root.light-brightness-changed(v); }
+                                    released(v) => { root.light-save(); }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 2px;
+                                HorizontalLayout {
+                                    Text { text: "EFFECT SPEED"; color: root.t-dim; font-size: 11px; }
+                                    Rectangle { horizontal-stretch: 1; }
+                                    Text { text: "\{Math.round(spd.value)}"; color: root.t-dim; font-size: 11px; }
+                                }
+                                spd := Slider {
+                                    minimum: 0;
+                                    maximum: 255;
+                                    value: root.light-speed;
+                                    enabled: root.connected && root.light-effect > 1;
+                                    changed(v) => { root.light-speed-changed(v); }
+                                    released(v) => { root.light-save(); }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 2px;
+                                HorizontalLayout {
+                                    Text { text: "COLOR"; color: root.t-dim; font-size: 11px; }
+                                    Rectangle { horizontal-stretch: 1; }
+                                    Rectangle {
+                                        width: 44px;
+                                        height: 16px;
+                                        border-radius: 8px;
+                                        border-width: 1px;
+                                        border-color: #00000055;
+                                        background: root.light-color;
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Text {
+                                        text: "Hue";
+                                        color: root.t-dim;
+                                        width: 32px;
+                                        vertical-alignment: center;
+                                    }
+                                    hue := Slider {
+                                        minimum: 0;
+                                        maximum: 255;
+                                        value: root.light-hue;
+                                        enabled: root.connected && root.light-effect != 0;
+                                        changed(v) => { root.light-color-changed(v, sat.value); }
+                                        released(v) => { root.light-save(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Text {
+                                        text: "Sat";
+                                        color: root.t-dim;
+                                        width: 32px;
+                                        vertical-alignment: center;
+                                    }
+                                    sat := Slider {
+                                        minimum: 0;
+                                        maximum: 255;
+                                        value: root.light-sat;
+                                        enabled: root.connected && root.light-effect != 0;
+                                        changed(v) => { root.light-color-changed(hue.value, v); }
+                                        released(v) => { root.light-save(); }
+                                    }
+                                }
                             }
                         }
                     }

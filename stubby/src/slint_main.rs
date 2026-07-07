@@ -85,6 +85,49 @@ fn tone(h: f64, s: f64, l: f64) -> slint::Color {
     )
 }
 
+/// QMK HSV (hue/sat 0-255, full value) → preview colour.
+fn hsv_col(hue: u8, sat: u8) -> slint::Color {
+    let h = hue as f64 / 255.0 * 360.0;
+    let s = sat as f64 / 255.0;
+    // HSV with v=1: chroma = s, then the usual sector walk
+    let c = s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = 1.0 - c;
+    let (r, g, b) = match h as i32 {
+        0..=59 => (c, x, 0.0),
+        60..=119 => (x, c, 0.0),
+        120..=179 => (0.0, c, x),
+        180..=239 => (0.0, x, c),
+        240..=299 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    slint::Color::from_rgb_u8(
+        ((r + m) * 255.0).round() as u8,
+        ((g + m) * 255.0).round() as u8,
+        ((b + m) * 255.0).round() as u8,
+    )
+}
+
+/// "07. RAINBOW_MOVING_CHEVRON" → "07 · Rainbow Moving Chevron"
+fn pretty_effect(raw: &str) -> String {
+    let (num, name) = raw.split_once(". ").unwrap_or(("", raw));
+    let words: Vec<String> = name
+        .split('_')
+        .map(|w| {
+            let mut cs = w.chars();
+            match cs.next() {
+                Some(f) => f.to_uppercase().chain(cs.flat_map(|c| c.to_lowercase())).collect(),
+                None => String::new(),
+            }
+        })
+        .collect();
+    if num.is_empty() {
+        words.join(" ")
+    } else {
+        format!("{num} · {}", words.join(" "))
+    }
+}
+
 /// Derive a Material-You-ish tonal palette from a seed accent + light/dark.
 fn apply_palette(app: &AppWindow, dark: bool, accent: u32) {
     let (h, s0, _) = rgb_to_hsl(accent);
@@ -266,6 +309,71 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ui_dark.set(!ui_dark.get());
             if let Some(a) = weak.upgrade() {
                 apply_palette(&a, ui_dark.get(), ACCENTS[ui_accent.get()].rgb);
+            }
+        });
+    }
+
+    // ── Lighting ──
+    let effect_names: Vec<SharedString> = def["lighting"]["underglowEffects"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|e| e[0].as_str())
+                .map(|s| pretty_effect(s).into())
+                .collect()
+        })
+        .unwrap_or_default();
+    app.set_effect_names(ModelRc::new(VecModel::from(effect_names)));
+    if let Some(l) = state.borrow().via.as_ref().and_then(|v| v.get_lighting().ok()) {
+        app.set_light_effect(l.effect as i32);
+        app.set_light_brightness(l.brightness as f32);
+        app.set_light_speed(l.speed as f32);
+        app.set_light_hue(l.hue as f32);
+        app.set_light_sat(l.sat as f32);
+        app.set_light_color(hsv_col(l.hue, l.sat));
+    }
+    {
+        let state = state.clone();
+        app.on_light_effect_selected(move |i| {
+            if let Some(v) = &state.borrow().via {
+                let _ = v.set_effect(i.max(0) as u8);
+                let _ = v.save_lighting();
+            }
+        });
+    }
+    {
+        let state = state.clone();
+        app.on_light_brightness_changed(move |val| {
+            if let Some(v) = &state.borrow().via {
+                let _ = v.set_brightness(val as u8);
+            }
+        });
+    }
+    {
+        let state = state.clone();
+        app.on_light_speed_changed(move |val| {
+            if let Some(v) = &state.borrow().via {
+                let _ = v.set_effect_speed(val as u8);
+            }
+        });
+    }
+    {
+        let state = state.clone();
+        let weak = app.as_weak();
+        app.on_light_color_changed(move |hue, sat| {
+            if let Some(v) = &state.borrow().via {
+                let _ = v.set_color(hue as u8, sat as u8);
+            }
+            if let Some(a) = weak.upgrade() {
+                a.set_light_color(hsv_col(hue as u8, sat as u8));
+            }
+        });
+    }
+    {
+        let state = state.clone();
+        app.on_light_save(move || {
+            if let Some(v) = &state.borrow().via {
+                let _ = v.save_lighting();
             }
         });
     }
