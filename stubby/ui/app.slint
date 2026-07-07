@@ -1,4 +1,4 @@
-import { Button } from "std-widgets.slint";
+import { Button, ComboBox } from "std-widgets.slint";
 
 export struct KeyData {
     kx: length,
@@ -19,12 +19,15 @@ component KeyCap inherits Rectangle {
     in property <string> label;
     in property <bool> selected;
     in property <color> accent;
+    in property <color> cap;
+    in property <color> cap-hover;
+    in property <color> cap-text;
     callback clicked();
 
     border-radius: 6px;
     border-width: 1px;
     border-color: #00000055;
-    background: root.selected ? root.accent : (ta.has-hover ? #484d58 : #3a3e47);
+    background: root.selected ? root.accent : (ta.has-hover ? root.cap-hover : root.cap);
     drop-shadow-blur: 4px;
     drop-shadow-color: #00000070;
     drop-shadow-offset-y: 2px;
@@ -34,7 +37,7 @@ component KeyCap inherits Rectangle {
         x: 6px;
         y: 4px;
         text: root.label;
-        color: white;
+        color: root.selected ? white : root.cap-text;
         font-size: 13px;
     }
     ta := TouchArea {
@@ -46,18 +49,21 @@ component LayerKey inherits Rectangle {
     in property <int> num;
     in property <bool> selected;
     in property <color> accent;
+    in property <color> cap;
+    in property <color> cap-hover;
+    in property <color> cap-text;
     callback clicked();
 
     width: 42px;
     height: 42px;
     border-radius: 6px;
-    background: root.selected ? root.accent : (ta.has-hover ? #484d58 : #3a3e47);
+    background: root.selected ? root.accent : (ta.has-hover ? root.cap-hover : root.cap);
     drop-shadow-blur: 3px;
     drop-shadow-color: #00000070;
 
     Text {
         text: "\{root.num}";
-        color: white;
+        color: root.selected ? white : root.cap-text;
         font-size: 16px;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -69,6 +75,9 @@ component LayerKey inherits Rectangle {
 
 component PickCap inherits Rectangle {
     in property <string> label;
+    in property <color> cap;
+    in property <color> cap-hover;
+    in property <color> cap-text;
     callback clicked();
 
     width: 52px;
@@ -76,7 +85,7 @@ component PickCap inherits Rectangle {
     border-radius: 5px;
     border-width: 1px;
     border-color: #00000055;
-    background: ta.has-hover ? #484d58 : #3a3e47;
+    background: ta.has-hover ? root.cap-hover : root.cap;
     drop-shadow-blur: 3px;
     drop-shadow-color: #00000060;
     drop-shadow-offset-y: 1px;
@@ -85,7 +94,7 @@ component PickCap inherits Rectangle {
         x: 5px;
         y: 3px;
         text: root.label;
-        color: white;
+        color: root.cap-text;
         font-size: 12px;
     }
     ta := TouchArea {
@@ -96,19 +105,22 @@ component PickCap inherits Rectangle {
 component TabButton inherits Rectangle {
     in property <string> text;
     in property <bool> selected;
+    in property <color> cap;
+    in property <color> text-col;
+    in property <color> dim;
     callback clicked();
 
     height: 30px;
     horizontal-stretch: 0;
     border-radius: 6px;
-    background: root.selected ? #2a2d33 : transparent;
+    background: root.selected ? root.cap : transparent;
 
     HorizontalLayout {
         padding-left: 12px;
         padding-right: 12px;
         Text {
             text: root.text;
-            color: root.selected ? white : #93989f;
+            color: root.selected ? root.text-col : root.dim;
             vertical-alignment: center;
             font-size: 14px;
         }
@@ -123,11 +135,21 @@ export component AppWindow inherits Window {
     default-font-size: 14px;
     preferred-width: 1060px;
     preferred-height: 780px;
-    background: #15161a;
+    background: root.t-bg;
+
+    // theme palette (driven from Rust)
+    in property <color> t-bg: #15161a;
+    in property <color> t-panel: #1d1f24;
+    in property <color> t-cap: #3a3e47;
+    in property <color> t-cap-hover: #484d58;
+    in property <color> t-cap-text: #ffffff;
+    in property <color> t-text: #ededf3;
+    in property <color> t-dim: #93989f;
+    in property <color> t-ok: #4cc46a;
+    in property <color> accent: #e04848;
 
     in property <string> kb-name: "Keyboard";
     in property <bool> connected;
-    in property <color> accent: #e04848;
     in property <[KeyData]> keys;
     in property <length> board-w;
     in property <length> board-h;
@@ -138,39 +160,51 @@ export component AppWindow inherits Window {
     in property <int> current-tab: 0;
     in property <[[PickData]]> picker-rows;
     in property <string> sel-label;
+    in property <[string]> theme-names;
+    in property <int> current-theme: 0;
     callback key-clicked(int);
     callback layer-clicked(int);
     callback tab-clicked(int);
     callback pick-clicked(int);
+    callback theme-selected(int);
     callback reload();
 
     VerticalLayout {
         // top bar
         Rectangle {
             height: 52px;
-            background: #1d1f24;
+            background: root.t-panel;
             HorizontalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
                 spacing: 10px;
                 Text {
                     text: root.kb-name;
-                    color: white;
+                    color: root.t-text;
                     font-size: 16px;
                     font-weight: 700;
                     vertical-alignment: center;
                 }
                 Text {
                     text: root.connected ? "● connected" : "● offline";
-                    color: root.connected ? #4cc46a : root.accent;
+                    color: root.connected ? root.t-ok : root.accent;
                     vertical-alignment: center;
                 }
                 Text {
                     text: root.status;
-                    color: #93989f;
+                    color: root.t-dim;
                     vertical-alignment: center;
                 }
                 Rectangle { horizontal-stretch: 1; }
+                VerticalLayout {
+                    alignment: center;
+                    ComboBox {
+                        width: 170px;
+                        model: root.theme-names;
+                        current-index: root.current-theme;
+                        selected => { root.theme-selected(self.current-index); }
+                    }
+                }
                 VerticalLayout {
                     alignment: center;
                     Button {
@@ -191,11 +225,14 @@ export component AppWindow inherits Window {
             VerticalLayout {
                 spacing: 6px;
                 alignment: start;
-                Text { text: "LAYER"; color: #93989f; font-size: 11px; }
+                Text { text: "LAYER"; color: root.t-dim; font-size: 11px; }
                 for l in root.layer-count : LayerKey {
                     num: l;
                     selected: l == root.current-layer;
                     accent: root.accent;
+                    cap: root.t-cap;
+                    cap-hover: root.t-cap-hover;
+                    cap-text: root.t-cap-text;
                     clicked => { root.layer-clicked(l); }
                 }
             }
@@ -213,6 +250,9 @@ export component AppWindow inherits Window {
                     label: k.label;
                     selected: k.selected;
                     accent: root.accent;
+                    cap: root.t-cap;
+                    cap-hover: root.t-cap-hover;
+                    cap-text: root.t-cap-text;
                     clicked => { root.key-clicked(k.index); }
                 }
             }
@@ -222,7 +262,7 @@ export component AppWindow inherits Window {
         // bottom picker
         Rectangle {
             height: 300px;
-            background: #1d1f24;
+            background: root.t-panel;
             VerticalLayout {
                 padding: 12px;
                 spacing: 8px;
@@ -233,6 +273,9 @@ export component AppWindow inherits Window {
                     for t[i] in root.tab-names : TabButton {
                         text: t;
                         selected: i == root.current-tab;
+                        cap: root.t-cap;
+                        text-col: root.t-text;
+                        dim: root.t-dim;
                         clicked => { root.tab-clicked(i); }
                     }
                     Rectangle { horizontal-stretch: 1; }
@@ -253,6 +296,9 @@ export component AppWindow inherits Window {
                             spacing: 5px;
                             for cell in row : PickCap {
                                 label: cell.label;
+                                cap: root.t-cap;
+                                cap-hover: root.t-cap-hover;
+                                cap-text: root.t-cap-text;
                                 clicked => { root.pick-clicked(cell.kc); }
                             }
                         }
