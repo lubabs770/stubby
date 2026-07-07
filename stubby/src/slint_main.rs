@@ -378,6 +378,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // debug/screenshot helper: start on a given page (0 keymap, 1 lighting)
+    if let Ok(p) = std::env::var("STUBBY_PAGE") {
+        app.set_current_page(p.parse().unwrap_or(0));
+    }
+
     let board = Rc::new(VecModel::from(state.borrow().rows()));
     app.set_keys(ModelRc::from(board.clone()));
 
