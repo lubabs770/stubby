@@ -27,14 +27,45 @@ is public). Never mix with the work `shmuelnewman`/careflow context.
 
 ## Layout
 
-- `stubby/src/via.rs` — raw-HID VIA transport (get/set keycode, layer count, reset)
+- `stubby/src/via.rs` — raw-HID VIA transport: keymap get/set, layer count,
+  reset, and lighting over the VIA3 custom channel 3 (qmk_rgb_matrix — the
+  wire protocol the V4's proto-12 firmware actually uses, not qmk_rgblight)
 - `stubby/src/kle.rs` — KLE layout decoder
 - `stubby/src/keycodes.rs` — keycode labels + assignment palette
-- `stubby/src/main.rs` — egui GUI (bin `stubby`)
+- `stubby/src/slint_main.rs` + `stubby/ui/app.slint` — the app (bin `stubby`,
+  Slint with Material style set in `build.rs`)
+- `stubby/src/main.rs` — earlier egui prototype (bin `stubby-egui`, kept for
+  reference; not maintained)
 - `stubby/src/probe.rs` — minimal transport probe (bin `stubby-probe`)
 - `stubby/src/v4_ansi.json` — vendored VIA definition (GPL-3.0, from `Keychron/keyboards`)
 
 The cargo project root is `stubby/` (a subdirectory of the repo).
+
+## Workflow — run and verify the UI yourself
+
+- **Launch the app yourself** after building; don't hand the user a run
+  command. `pkill -x stubby` (exact match — `pkill -f` matches its own command
+  line and kills the shell), then run `stubby/target/debug/stubby` in the
+  background.
+- **Screenshot your UI work and look at it before handing over.** Get window
+  geometry from `hyprctl clients -j` (match on title containing `V4`; the
+  window class is empty), then `grim -g "X,Y WxH" out.png`. Re-query geometry
+  for every shot — the window moves/resizes as the user interacts and stale
+  coords crop the window wrong.
+- Env helpers for screenshots: `STUBBY_PAGE=1` opens on the Lighting page,
+  `STUBBY_DARK=0` starts in light mode.
+- You can't float/resize windows from the CLI on this box: `hyprctl dispatch`
+  is Lua-flavored (wants `hl.dsp.*` dispatcher objects) and `hyprctl keyword`
+  rejects non-legacy parsers. To frame a shot, grim a computed sub-region
+  instead.
+- Icons: **Material Symbols Rounded** is installed system-wide; use ligature
+  names (`"dark_mode"`, `"refresh"`) in a Text with that font-family. Emoji do
+  NOT render in Slint's text stack.
+- Slint layout gotcha: a fixed `width:`/`height:` on a layout child also caps
+  the parent layout's max size, and fixed heights act as window minimums (a
+  drag-to-grow control can enter a window-resize feedback loop). Prefer
+  `preferred-*` sizes, or float fixed-size content centered inside an
+  unconstrained container.
 
 ## BUILD RULE — do not full/clean-build on this machine
 

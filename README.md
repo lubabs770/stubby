@@ -17,12 +17,16 @@ Built on Keychron's own open-source releases:
 
 - **Live keymap editing** — click a key, pick a keycode, it's written to the
   board immediately (dynamic keymap, all 5 layers). Basic / media / special /
-  layer (MO, TO, DF, TG, OSL, TT, LT) / Keychron custom keycodes.
+  layer (MO, TO, DF, TG, OSL, TT, LT) / Keychron custom keycodes, in a
+  drag-resizable picker panel.
 - **Lighting** — effect, brightness, speed, and colour for the RGB backlight
   over the VIA3 custom channel (rgb_matrix). Values apply live while dragging;
   EEPROM save happens on release, so flash isn't hammered.
-- **Material 3 UI** ([Slint](https://slint.dev), material style) — light/dark
-  toggle and an accent seed colour that derives the whole tonal palette.
+- **Material 3 UI** ([Slint](https://slint.dev), material style) — segmented
+  button navigation, a light/dark toggle, and a palette menu whose accent seed
+  derives the whole tonal palette.
+- **Hot replug** — if the app starts without the keyboard (or it's unplugged),
+  plug it in and hit ⟳ to reconnect; no restart needed.
 
 | Lighting | Light mode |
 | --- | --- |
@@ -88,7 +92,8 @@ starts in light mode.
 - [x] VIA transport (`stubby-probe`)
 - [x] Read/write dynamic keymap (remap keys, all layers)
 - [x] Parse VIA definition layout → render key grid
-- [x] Slint Material 3 UI: light/dark + accent theming
+- [x] Slint Material 3 UI: light/dark + accent theming, segmented navigation
 - [x] Lighting controls (effect / brightness / speed / colour)
+- [x] Reconnect on replug without restarting
 - [ ] Keycap legend polish
 - [ ] More boards (definition loading beyond the bundled V4)
