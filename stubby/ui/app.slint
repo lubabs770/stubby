@@ -1,0 +1,264 @@
+import { Button } from "std-widgets.slint";
+
+export struct KeyData {
+    kx: length,
+    ky: length,
+    kw: length,
+    kh: length,
+    label: string,
+    selected: bool,
+    index: int,
+}
+
+export struct PickData {
+    label: string,
+    kc: int,
+}
+
+component KeyCap inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    in property <color> accent;
+    callback clicked();
+
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #00000055;
+    background: root.selected ? root.accent : (ta.has-hover ? #484d58 : #3a3e47);
+    drop-shadow-blur: 4px;
+    drop-shadow-color: #00000070;
+    drop-shadow-offset-y: 2px;
+    animate background { duration: 90ms; }
+
+    Text {
+        x: 6px;
+        y: 4px;
+        text: root.label;
+        color: white;
+        font-size: 13px;
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component LayerKey inherits Rectangle {
+    in property <int> num;
+    in property <bool> selected;
+    in property <color> accent;
+    callback clicked();
+
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    background: root.selected ? root.accent : (ta.has-hover ? #484d58 : #3a3e47);
+    drop-shadow-blur: 3px;
+    drop-shadow-color: #00000070;
+
+    Text {
+        text: "\{root.num}";
+        color: white;
+        font-size: 16px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component PickCap inherits Rectangle {
+    in property <string> label;
+    callback clicked();
+
+    width: 52px;
+    height: 38px;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: #00000055;
+    background: ta.has-hover ? #484d58 : #3a3e47;
+    drop-shadow-blur: 3px;
+    drop-shadow-color: #00000060;
+    drop-shadow-offset-y: 1px;
+
+    Text {
+        x: 5px;
+        y: 3px;
+        text: root.label;
+        color: white;
+        font-size: 12px;
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component TabButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked();
+
+    height: 30px;
+    horizontal-stretch: 0;
+    border-radius: 6px;
+    background: root.selected ? #2a2d33 : transparent;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        Text {
+            text: root.text;
+            color: root.selected ? white : #93989f;
+            vertical-alignment: center;
+            font-size: 14px;
+        }
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "stubby — Keychron V4";
+    default-font-size: 14px;
+    preferred-width: 1060px;
+    preferred-height: 780px;
+    background: #15161a;
+
+    in property <string> kb-name: "Keyboard";
+    in property <bool> connected;
+    in property <color> accent: #e04848;
+    in property <[KeyData]> keys;
+    in property <length> board-w;
+    in property <length> board-h;
+    in property <int> layer-count: 1;
+    in property <int> current-layer: 0;
+    in property <string> status;
+    in property <[string]> tab-names;
+    in property <int> current-tab: 0;
+    in property <[[PickData]]> picker-rows;
+    in property <string> sel-label;
+    callback key-clicked(int);
+    callback layer-clicked(int);
+    callback tab-clicked(int);
+    callback pick-clicked(int);
+    callback reload();
+
+    VerticalLayout {
+        // top bar
+        Rectangle {
+            height: 52px;
+            background: #1d1f24;
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 10px;
+                Text {
+                    text: root.kb-name;
+                    color: white;
+                    font-size: 16px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.connected ? "● connected" : "● offline";
+                    color: root.connected ? #4cc46a : root.accent;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.status;
+                    color: #93989f;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                VerticalLayout {
+                    alignment: center;
+                    Button {
+                        text: "⟳ reload";
+                        height: 34px;
+                        clicked => { root.reload(); }
+                    }
+                }
+            }
+        }
+
+        // body (keyboard)
+        HorizontalLayout {
+            vertical-stretch: 1;
+            padding: 18px;
+            spacing: 20px;
+
+            VerticalLayout {
+                spacing: 6px;
+                alignment: start;
+                Text { text: "LAYER"; color: #93989f; font-size: 11px; }
+                for l in root.layer-count : LayerKey {
+                    num: l;
+                    selected: l == root.current-layer;
+                    accent: root.accent;
+                    clicked => { root.layer-clicked(l); }
+                }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+            Rectangle {
+                width: root.board-w;
+                height: root.board-h;
+                vertical-stretch: 0;
+                for k in root.keys : KeyCap {
+                    x: k.kx;
+                    y: k.ky;
+                    width: k.kw;
+                    height: k.kh;
+                    label: k.label;
+                    selected: k.selected;
+                    accent: root.accent;
+                    clicked => { root.key-clicked(k.index); }
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+
+        // bottom picker
+        Rectangle {
+            height: 300px;
+            background: #1d1f24;
+            VerticalLayout {
+                padding: 12px;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 4px;
+                    for t[i] in root.tab-names : TabButton {
+                        text: t;
+                        selected: i == root.current-tab;
+                        clicked => { root.tab-clicked(i); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Text {
+                        text: root.sel-label;
+                        color: root.accent;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Flickable {
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 5px;
+                        for row in root.picker-rows : HorizontalLayout {
+                            alignment: start;
+                            spacing: 5px;
+                            for cell in row : PickCap {
+                                label: cell.label;
+                                clicked => { root.pick-clicked(cell.kc); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

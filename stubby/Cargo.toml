@@ -3,6 +3,7 @@ name = "stubby"
 version = "0.1.0"
 edition = "2021"
 description = "Native (non-Electron) Keychron launcher — talks to the keyboard over raw HID using the VIA protocol"
+build = "build.rs"
 
 [lib]
 name = "stubby"
@@ -12,12 +13,23 @@ path = "src/lib.rs"
 name = "stubby-probe"
 path = "src/probe.rs"
 
+# egui version (kept while porting the UI to Slint)
+[[bin]]
+name = "stubby-egui"
+path = "src/main.rs"
+
+# Slint version (new default)
 [[bin]]
 name = "stubby"
-path = "src/main.rs"
+path = "src/slint_main.rs"
 
 [dependencies]
 hidapi = "2"
+serde_json = "1"
+slint = "1"
+# egui bin deps
 eframe = "0.29"
 egui = "0.29"
-serde_json = "1"
+
+[build-dependencies]
+slint-build = "1"
