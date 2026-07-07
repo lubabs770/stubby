@@ -4,7 +4,8 @@ A **native, non-Electron** Keychron launcher for Linux. Talks to the keyboard
 directly over raw HID using the **VIA protocol** — no browser, no WebHID, no
 Chromium. One small binary.
 
-![Keymap editor (dark)](docs/keymap-dark.png)
+<img width="1261" height="1430" alt="image" src="https://github.com/user-attachments/assets/c200776b-9cb9-4195-a92d-552987e7d5e6" />
+
 
 Built on Keychron's own open-source releases:
 
@@ -28,9 +29,9 @@ Built on Keychron's own open-source releases:
 - **Hot replug** — if the app starts without the keyboard (or it's unplugged),
   plug it in and hit ⟳ to reconnect; no restart needed.
 
-| Lighting | Light mode |
-| --- | --- |
-| ![Lighting page](docs/lighting-dark.png) | ![Keymap editor (light)](docs/keymap-light.png) |
+Lighting
+<img width="1256" height="1437" alt="image" src="https://github.com/user-attachments/assets/6645631f-7f76-4900-8b13-e846af18198e" />
+
 
 ## Hardware
 
