@@ -1,4 +1,4 @@
-import { Button, ComboBox } from "std-widgets.slint";
+import { Button, ComboBox, Palette } from "std-widgets.slint";
 
 export struct KeyData {
     kx: length,
@@ -160,14 +160,19 @@ export component AppWindow inherits Window {
     in property <int> current-tab: 0;
     in property <[[PickData]]> picker-rows;
     in property <string> sel-label;
-    in property <[string]> theme-names;
-    in property <int> current-theme: 0;
+    in property <bool> dark: true;
+    in property <[string]> accent-names;
+    in property <int> current-accent: 0;
     callback key-clicked(int);
     callback layer-clicked(int);
     callback tab-clicked(int);
     callback pick-clicked(int);
-    callback theme-selected(int);
+    callback accent-selected(int);
+    callback toggle-dark();
     callback reload();
+
+    init => { Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light; }
+    changed dark => { Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light; }
 
     VerticalLayout {
         // top bar
@@ -199,10 +204,18 @@ export component AppWindow inherits Window {
                 VerticalLayout {
                     alignment: center;
                     ComboBox {
-                        width: 170px;
-                        model: root.theme-names;
-                        current-index: root.current-theme;
-                        selected => { root.theme-selected(self.current-index); }
+                        width: 128px;
+                        model: root.accent-names;
+                        current-index: root.current-accent;
+                        selected => { root.accent-selected(self.current-index); }
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Button {
+                        text: root.dark ? "☀ Light" : "🌙 Dark";
+                        height: 34px;
+                        clicked => { root.toggle-dark(); }
                     }
                 }
                 VerticalLayout {

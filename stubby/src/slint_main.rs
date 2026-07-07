@@ -6,7 +6,7 @@
 
 slint::include_modules!();
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -22,49 +22,93 @@ const U: f32 = 62.0; // key unit (px)
 const GAP: f32 = 6.0;
 const COLS: usize = 16; // picker grid columns
 
-/// A named colour theme. Values are 0xRRGGBB.
-struct ThemeDef {
+/// Accent presets (seed colours). Values are 0xRRGGBB.
+struct Accent {
     name: &'static str,
-    bg: u32,
-    panel: u32,
-    cap: u32,
-    cap_hover: u32,
-    cap_text: u32,
-    text: u32,
-    dim: u32,
-    accent: u32,
-    ok: u32,
+    rgb: u32,
 }
 
-const THEMES: &[ThemeDef] = &[
-    ThemeDef { name: "Dark",             bg: 0x15161a, panel: 0x1d1f24, cap: 0x3a3e47, cap_hover: 0x484d58, cap_text: 0xffffff, text: 0xededf3, dim: 0x93989f, accent: 0xe04848, ok: 0x4cc46a },
-    ThemeDef { name: "Light",            bg: 0xd9dce3, panel: 0xe8eaef, cap: 0xf3f5f8, cap_hover: 0xffffff, cap_text: 0x24272d, text: 0x22252b, dim: 0x64697d, accent: 0xe04848, ok: 0x2c9c4c },
-    ThemeDef { name: "Nord",             bg: 0x2e3440, panel: 0x3b4252, cap: 0x434c5e, cap_hover: 0x4c566a, cap_text: 0xeceff4, text: 0xeceff4, dim: 0x9aa4b8, accent: 0x88c0d0, ok: 0xa3be8c },
-    ThemeDef { name: "Dracula",          bg: 0x282a36, panel: 0x21222c, cap: 0x44475a, cap_hover: 0x565872, cap_text: 0xf8f8f2, text: 0xf8f8f2, dim: 0x8a8fa3, accent: 0xbd93f9, ok: 0x50fa7b },
-    ThemeDef { name: "Gruvbox",          bg: 0x282828, panel: 0x1d2021, cap: 0x3c3836, cap_hover: 0x504945, cap_text: 0xebdbb2, text: 0xebdbb2, dim: 0xa89984, accent: 0xfe8019, ok: 0xb8bb26 },
-    ThemeDef { name: "Solarized Dark",   bg: 0x002b36, panel: 0x073642, cap: 0x0a4a58, cap_hover: 0x0f5a6a, cap_text: 0x93a1a1, text: 0xeee8d5, dim: 0x839496, accent: 0x268bd2, ok: 0x859900 },
-    ThemeDef { name: "Catppuccin Mocha", bg: 0x1e1e2e, panel: 0x181825, cap: 0x313244, cap_hover: 0x45475a, cap_text: 0xcdd6f4, text: 0xcdd6f4, dim: 0xa6adc8, accent: 0xcba6f7, ok: 0xa6e3a1 },
-    ThemeDef { name: "Catppuccin Latte", bg: 0xeff1f5, panel: 0xe6e9ef, cap: 0xffffff, cap_hover: 0xdce0e8, cap_text: 0x4c4f69, text: 0x4c4f69, dim: 0x6c6f85, accent: 0x8839ef, ok: 0x40a02b },
-    ThemeDef { name: "Tokyo Night",      bg: 0x1a1b26, panel: 0x16161e, cap: 0x2a2e42, cap_hover: 0x3b4261, cap_text: 0xc0caf5, text: 0xc0caf5, dim: 0x9aa5ce, accent: 0x7aa2f7, ok: 0x9ece6a },
-    ThemeDef { name: "Rosé Pine",        bg: 0x191724, panel: 0x1f1d2e, cap: 0x26233a, cap_hover: 0x393552, cap_text: 0xe0def4, text: 0xe0def4, dim: 0x908caa, accent: 0xebbcba, ok: 0x9ccfd8 },
+const ACCENTS: &[Accent] = &[
+    Accent { name: "Slint",  rgb: 0x2379f4 },
+    Accent { name: "Purple", rgb: 0x8b5cf0 },
+    Accent { name: "Red",    rgb: 0xe04848 },
+    Accent { name: "Green",  rgb: 0x2fae55 },
+    Accent { name: "Orange", rgb: 0xe8801f },
+    Accent { name: "Teal",   rgb: 0x1aa89a },
+    Accent { name: "Pink",   rgb: 0xe0559a },
 ];
 
 fn col(v: u32) -> slint::Color {
     slint::Color::from_rgb_u8((v >> 16) as u8, (v >> 8) as u8, v as u8)
 }
 
-fn apply_theme(app: &AppWindow, i: usize) {
-    let t = &THEMES[i.min(THEMES.len() - 1)];
-    app.set_t_bg(col(t.bg));
-    app.set_t_panel(col(t.panel));
-    app.set_t_cap(col(t.cap));
-    app.set_t_cap_hover(col(t.cap_hover));
-    app.set_t_cap_text(col(t.cap_text));
-    app.set_t_text(col(t.text));
-    app.set_t_dim(col(t.dim));
-    app.set_t_ok(col(t.ok));
-    app.set_accent(col(t.accent));
-    app.set_current_theme(i as i32);
+fn rgb_to_hsl(v: u32) -> (f64, f64, f64) {
+    let r = ((v >> 16) & 0xff) as f64 / 255.0;
+    let g = ((v >> 8) & 0xff) as f64 / 255.0;
+    let b = (v & 0xff) as f64 / 255.0;
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    let d = max - min;
+    if d.abs() < 1e-9 {
+        return (0.0, 0.0, l);
+    }
+    let s = d / (1.0 - (2.0 * l - 1.0).abs());
+    let h = if max == r {
+        60.0 * (((g - b) / d) % 6.0)
+    } else if max == g {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    ((h + 360.0) % 360.0, s, l)
+}
+
+fn tone(h: f64, s: f64, l: f64) -> slint::Color {
+    let s = s.clamp(0.0, 1.0);
+    let l = l.clamp(0.0, 1.0);
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = match h as i32 {
+        0..=59 => (c, x, 0.0),
+        60..=119 => (x, c, 0.0),
+        120..=179 => (0.0, c, x),
+        180..=239 => (0.0, x, c),
+        240..=299 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    slint::Color::from_rgb_u8(
+        ((r + m) * 255.0).round() as u8,
+        ((g + m) * 255.0).round() as u8,
+        ((b + m) * 255.0).round() as u8,
+    )
+}
+
+/// Derive a Material-You-ish tonal palette from a seed accent + light/dark.
+fn apply_palette(app: &AppWindow, dark: bool, accent: u32) {
+    let (h, s0, _) = rgb_to_hsl(accent);
+    let ss = (s0 * 0.5).clamp(0.05, 0.35); // muted surface tint
+    app.set_accent(col(accent));
+    app.set_t_ok(col(0x4cc46a));
+    app.set_dark(dark);
+    if dark {
+        app.set_t_bg(tone(h, ss * 0.5, 0.075));
+        app.set_t_panel(tone(h, ss * 0.5, 0.115));
+        app.set_t_cap(tone(h, ss * 0.6, 0.185));
+        app.set_t_cap_hover(tone(h, ss * 0.6, 0.26));
+        app.set_t_cap_text(tone(h, ss * 0.3, 0.90));
+        app.set_t_text(tone(h, ss * 0.25, 0.94));
+        app.set_t_dim(tone(h, ss * 0.3, 0.60));
+    } else {
+        app.set_t_bg(tone(h, ss * 0.5, 0.88));
+        app.set_t_panel(tone(h, ss * 0.4, 0.95));
+        app.set_t_cap(tone(h, ss * 0.3, 0.985));
+        app.set_t_cap_hover(tone(h, ss * 0.5, 0.91));
+        app.set_t_cap_text(tone(h, ss * 0.5, 0.20));
+        app.set_t_text(tone(h, ss * 0.5, 0.13));
+        app.set_t_dim(tone(h, ss * 0.4, 0.45));
+    }
 }
 
 struct State {
@@ -196,14 +240,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.set_tab_names(ModelRc::new(VecModel::from(tab_names)));
     app.set_picker_rows(state.borrow().picker_rows(layer_count));
 
-    let theme_names: Vec<SharedString> = THEMES.iter().map(|t| t.name.into()).collect();
-    app.set_theme_names(ModelRc::new(VecModel::from(theme_names)));
-    apply_theme(&app, 0);
+    let accent_names: Vec<SharedString> = ACCENTS.iter().map(|a| a.name.into()).collect();
+    app.set_accent_names(ModelRc::new(VecModel::from(accent_names)));
+
+    let ui_dark = Rc::new(Cell::new(true));
+    let ui_accent = Rc::new(Cell::new(0usize));
+    apply_palette(&app, ui_dark.get(), ACCENTS[ui_accent.get()].rgb);
     {
         let weak = app.as_weak();
-        app.on_theme_selected(move |i| {
+        let ui_dark = ui_dark.clone();
+        let ui_accent = ui_accent.clone();
+        app.on_accent_selected(move |i| {
+            let i = i.max(0) as usize % ACCENTS.len();
+            ui_accent.set(i);
             if let Some(a) = weak.upgrade() {
-                apply_theme(&a, i.max(0) as usize);
+                apply_palette(&a, ui_dark.get(), ACCENTS[i].rgb);
+            }
+        });
+    }
+    {
+        let weak = app.as_weak();
+        let ui_dark = ui_dark.clone();
+        let ui_accent = ui_accent.clone();
+        app.on_toggle_dark(move || {
+            ui_dark.set(!ui_dark.get());
+            if let Some(a) = weak.upgrade() {
+                apply_palette(&a, ui_dark.get(), ACCENTS[ui_accent.get()].rgb);
             }
         });
     }
