@@ -160,6 +160,7 @@ struct State {
     custom: Vec<String>,
     keymap: HashMap<(u8, u8), u16>,
     layer: u8,
+    layer_count: u8,
     tab: Tab,
     selected: Option<usize>,
 }
@@ -206,8 +207,8 @@ impl State {
     }
 
     /// Picker entries for the current tab, chunked into rows of COLS.
-    fn picker_rows(&self, layer_count: u8) -> ModelRc<ModelRc<PickData>> {
-        let entries = keycodes::entries(self.tab, layer_count, &self.custom);
+    fn picker_rows(&self) -> ModelRc<ModelRc<PickData>> {
+        let entries = keycodes::entries(self.tab, self.layer_count, &self.custom);
         let rows: Vec<ModelRc<PickData>> = entries
             .chunks(COLS)
             .map(|chunk| {
@@ -263,6 +264,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         custom,
         keymap: HashMap::new(),
         layer: 0,
+        layer_count,
         tab: Tab::Basic,
         selected: None,
     };
@@ -281,10 +283,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let tab_names: Vec<SharedString> = keycodes::TABS.iter().map(|(_, n)| (*n).into()).collect();
     app.set_tab_names(ModelRc::new(VecModel::from(tab_names)));
-    app.set_picker_rows(state.borrow().picker_rows(layer_count));
+    app.set_picker_rows(state.borrow().picker_rows());
 
     let accent_names: Vec<SharedString> = ACCENTS.iter().map(|a| a.name.into()).collect();
     app.set_accent_names(ModelRc::new(VecModel::from(accent_names)));
+    let accent_cols: Vec<slint::Color> = ACCENTS.iter().map(|a| col(a.rgb)).collect();
+    app.set_accent_colors(ModelRc::new(VecModel::from(accent_cols)));
 
     // debug/screenshot helper: STUBBY_DARK=0 starts in light mode
     let start_dark = std::env::var("STUBBY_DARK").map(|v| v != "0").unwrap_or(true);
@@ -299,6 +303,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let i = i.max(0) as usize % ACCENTS.len();
             ui_accent.set(i);
             if let Some(a) = weak.upgrade() {
+                a.set_current_accent(i as i32);
                 apply_palette(&a, ui_dark.get(), ACCENTS[i].rgb);
             }
         });
@@ -428,7 +433,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             s.tab = tab_from_index(i);
             if let Some(a) = weak.upgrade() {
                 a.set_current_tab(i);
-                a.set_picker_rows(s.picker_rows(layer_count));
+                a.set_picker_rows(s.picker_rows());
             }
         });
     }
@@ -456,12 +461,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
-    // reload from board
+    // reload from board — also reconnects if the keyboard was (re)plugged
     {
         let state = state.clone();
         let board = board.clone();
+        let weak = app.as_weak();
         app.on_reload(move || {
             let mut s = state.borrow_mut();
+            if s.via.is_none() {
+                if let Ok(v) = Via::open() {
+                    let lc = v.layer_count().unwrap_or(1);
+                    let p = v.protocol_version().unwrap_or(0);
+                    s.via = Some(v);
+                    s.layer_count = lc;
+                    if let Some(a) = weak.upgrade() {
+                        a.set_connected(true);
+                        a.set_layer_count(lc as i32);
+                        a.set_status(format!("VIA proto {p}").into());
+                        a.set_picker_rows(s.picker_rows());
+                        if let Some(l) = s.via.as_ref().and_then(|v| v.get_lighting().ok()) {
+                            a.set_light_effect(l.effect as i32);
+                            a.set_light_brightness(l.brightness as f32);
+                            a.set_light_speed(l.speed as f32);
+                            a.set_light_hue(l.hue as f32);
+                            a.set_light_sat(l.sat as f32);
+                            a.set_light_color(hsv_col(l.hue, l.sat));
+                        }
+                    }
+                }
+            }
             s.read_layer();
             board.set_vec(s.rows());
         });

@@ -135,31 +135,53 @@ component PickCap inherits Rectangle {
     }
 }
 
-component TabButton inherits Rectangle {
-    in property <string> text;
-    in property <bool> selected;
-    in property <color> cap;
+// M3 segmented buttons: one outlined pill, connected segments, check on selected
+component SegmentedButtons inherits Rectangle {
+    in property <[string]> options;
+    in property <int> selected;
+    in property <color> outline;
+    in property <color> sel-bg;
     in property <color> text-col;
     in property <color> dim;
-    callback clicked();
+    callback select(int);
 
-    height: 30px;
-    horizontal-stretch: 0;
-    border-radius: 6px;
-    background: root.selected ? root.cap : transparent;
+    height: 36px;
+    border-radius: 18px;
+    border-width: 1px;
+    border-color: root.outline;
+    clip: true;
 
     HorizontalLayout {
-        padding-left: 12px;
-        padding-right: 12px;
-        Text {
-            text: root.text;
-            color: root.selected ? root.text-col : root.dim;
-            vertical-alignment: center;
-            font-size: 14px;
+        for opt[i] in root.options : Rectangle {
+            background: i == root.selected ? root.sel-bg : transparent;
+            animate background { duration: 90ms; }
+            if i > 0 : Rectangle {
+                x: 0;
+                y: 0;
+                width: 1px;
+                height: parent.height;
+                background: root.outline;
+            }
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 6px;
+                if i == root.selected : MIcon {
+                    text: "check";
+                    font-size: 16px;
+                    color: root.text-col;
+                }
+                Text {
+                    text: opt;
+                    color: i == root.selected ? root.text-col : root.dim;
+                    vertical-alignment: center;
+                    font-size: 13px;
+                }
+            }
+            TouchArea {
+                clicked => { root.select(i); }
+            }
         }
-    }
-    ta := TouchArea {
-        clicked => { root.clicked(); }
     }
 }
 
@@ -195,6 +217,7 @@ export component AppWindow inherits Window {
     in property <string> sel-label;
     in property <bool> dark: true;
     in property <[string]> accent-names;
+    in property <[color]> accent-colors;
     in property <int> current-accent: 0;
 
     in-out property <length> picker-height: 300px;
@@ -254,34 +277,24 @@ export component AppWindow inherits Window {
                 Rectangle { horizontal-stretch: 1; }
                 VerticalLayout {
                     alignment: center;
-                    HorizontalLayout {
-                        spacing: 4px;
-                        TabButton {
-                            text: "Keymap";
-                            selected: root.current-page == 0;
-                            cap: root.t-cap;
-                            text-col: root.t-text;
-                            dim: root.t-dim;
-                            clicked => { root.current-page = 0; }
-                        }
-                        TabButton {
-                            text: "Lighting";
-                            selected: root.current-page == 1;
-                            cap: root.t-cap;
-                            text-col: root.t-text;
-                            dim: root.t-dim;
-                            clicked => { root.current-page = 1; }
-                        }
+                    SegmentedButtons {
+                        options: ["Keymap", "Lighting"];
+                        selected: root.current-page;
+                        outline: root.t-cap;
+                        sel-bg: root.accent.with-alpha(0.22);
+                        text-col: root.t-text;
+                        dim: root.t-dim;
+                        select(i) => { root.current-page = i; }
                     }
                 }
                 Rectangle { horizontal-stretch: 1; }
                 VerticalLayout {
                     alignment: center;
-                    ComboBox {
-                        width: 128px;
-                        model: root.accent-names;
-                        current-index: root.current-accent;
-                        selected => { root.accent-selected(self.current-index); }
+                    IconButton {
+                        icon: "palette";
+                        fg: root.t-text;
+                        hover-bg: root.t-cap;
+                        clicked => { accent-menu.show(); }
                     }
                 }
                 VerticalLayout {
@@ -303,10 +316,65 @@ export component AppWindow inherits Window {
                     }
                 }
             }
+
+            accent-menu := PopupWindow {
+                x: parent.width - 216px;
+                y: 54px;
+                width: 200px;
+
+                Rectangle {
+                    background: root.t-panel;
+                    border-radius: 16px;
+                    border-width: 1px;
+                    border-color: root.t-cap;
+                    drop-shadow-blur: 16px;
+                    drop-shadow-color: #00000060;
+                    drop-shadow-offset-y: 4px;
+
+                    VerticalLayout {
+                        padding: 8px;
+                        for name[i] in root.accent-names : Rectangle {
+                            height: 40px;
+                            border-radius: 10px;
+                            background: row-ta.has-hover ? root.t-cap : transparent;
+                            row-ta := TouchArea {
+                                clicked => { root.accent-selected(i); }
+                            }
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 12px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 9px;
+                                        background: root.accent-colors[i];
+                                    }
+                                }
+                                Text {
+                                    text: name;
+                                    color: root.t-text;
+                                    font-size: 14px;
+                                    vertical-alignment: center;
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                if i == root.current-accent : MIcon {
+                                    text: "check";
+                                    font-size: 16px;
+                                    color: root.accent;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // ── Keymap page ──
         if root.current-page == 0 : VerticalLayout {
+            vertical-stretch: 1;
 
         // body (keyboard)
         HorizontalLayout {
@@ -329,36 +397,43 @@ export component AppWindow inherits Window {
                 }
             }
 
-            Rectangle { horizontal-stretch: 1; }
+            // unconstrained container so the body can stretch past the board's
+            // fixed size; the board floats centered inside it
             Rectangle {
-                width: root.board-w;
-                height: root.board-h;
-                vertical-stretch: 0;
-                for k in root.keys : KeyCap {
-                    x: k.kx;
-                    y: k.ky;
-                    width: k.kw;
-                    height: k.kh;
-                    label: k.label;
-                    selected: k.selected;
-                    accent: root.accent;
-                    cap: root.t-cap;
-                    cap-hover: root.t-cap-hover;
-                    cap-text: root.t-cap-text;
-                    clicked => { root.key-clicked(k.index); }
+                horizontal-stretch: 1;
+                Rectangle {
+                    width: root.board-w;
+                    height: root.board-h;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    for k in root.keys : KeyCap {
+                        x: k.kx;
+                        y: k.ky;
+                        width: k.kw;
+                        height: k.kh;
+                        label: k.label;
+                        selected: k.selected;
+                        accent: root.accent;
+                        cap: root.t-cap;
+                        cap-hover: root.t-cap-hover;
+                        cap-text: root.t-cap-text;
+                        clicked => { root.key-clicked(k.index); }
+                    }
                 }
             }
-            Rectangle { horizontal-stretch: 1; }
         }
 
-        // splitter — drag to resize the picker
+        // splitter — drag to resize the picker. The clamp is against the space
+        // left over after the top bar + keyboard, so the picker can never force
+        // the window's own minimum size up (which made the window grow while
+        // dragging).
         splitter := TouchArea {
             height: 12px;
             mouse-cursor: ns-resize;
             moved => {
                 root.picker-height = Math.clamp(
                     root.height - self.absolute-position.y - self.mouse-y,
-                    160px, root.height - 260px);
+                    120px, root.height - 52px - root.board-h - 48px);
             }
             Rectangle {
                 width: 36px;
@@ -369,9 +444,12 @@ export component AppWindow inherits Window {
             }
         }
 
-        // bottom picker
+        // bottom picker — preferred (not fixed) height so dragging never
+        // raises the window's minimum size
         Rectangle {
-            height: root.picker-height;
+            preferred-height: root.picker-height;
+            min-height: 120px;
+            vertical-stretch: 0;
             background: root.t-panel;
             VerticalLayout {
                 padding: 12px;
@@ -380,13 +458,14 @@ export component AppWindow inherits Window {
                 HorizontalLayout {
                     alignment: start;
                     spacing: 4px;
-                    for t[i] in root.tab-names : TabButton {
-                        text: t;
-                        selected: i == root.current-tab;
-                        cap: root.t-cap;
+                    SegmentedButtons {
+                        options: root.tab-names;
+                        selected: root.current-tab;
+                        outline: root.t-cap;
+                        sel-bg: root.accent.with-alpha(0.22);
                         text-col: root.t-text;
                         dim: root.t-dim;
-                        clicked => { root.tab-clicked(i); }
+                        select(i) => { root.tab-clicked(i); }
                     }
                     Rectangle { horizontal-stretch: 1; }
                     Text {
