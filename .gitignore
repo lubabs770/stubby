@@ -1,0 +1,6 @@
+# Rust build artifacts
+/stubby/target/
+
+# Upstream Keychron VIA definitions — a separate GPL-3.0 clone, not part of this
+# repo. We only vendor the one file we need (stubby/src/v4_ansi.json).
+/keyboards/

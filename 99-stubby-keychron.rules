@@ -1,0 +1,11 @@
+# stubby — grant your user access to Keychron raw-HID interfaces without root.
+# Covers all Keychron/Lemokey boards (vendor 0x3434).
+#
+# We use GROUP+MODE (applied directly by udev) instead of relying on logind's
+# uaccess, which on this machine refuses to apply an ACL to the keyboard's
+# hidraw node even though it tags it. "sam" is in the "wheel" group. uaccess is
+# left on as a belt-and-suspenders for seats where it does work.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3434", GROUP="wheel", MODE="0660", TAG+="uaccess"
+
+# Parent USB device, same treatment.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="3434", GROUP="wheel", MODE="0660", TAG+="uaccess"
